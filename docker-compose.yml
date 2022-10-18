@@ -21,7 +21,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      - DOCKER_JUPYTER_IMAGE=ghcr.io/pjeanjean/reproduse-notebook
+      - DOCKER_JUPYTER_IMAGE=ghcr.io/pjeanjean/reproduse-notebook:latest
       - DOCKER_NETWORK_NAME=traefik_network
       - DOCKER_NOTEBOOKS_FOLDER=/notebooks
       - DOCKER_NOTEBOOKS_HOST_FOLDER=${HOST_FOLDER}/notebooks

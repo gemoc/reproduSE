@@ -10,6 +10,7 @@ RUN pip install dockerspawner \
                 psycopg2-binary
 
 COPY jupyterhub_config.py /etc/jupyterhub/
+COPY artifacts.json /etc/jupyterhub/
 
 ENTRYPOINT ["jupyterhub"]
 CMD ["-f", "/etc/jupyterhub/jupyterhub_config.py"]
