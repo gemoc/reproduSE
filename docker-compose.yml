@@ -1,0 +1,52 @@
+version: '3'
+
+services:
+  jupyterhub_db:
+    container_name: rse_jupyterhub_db
+    image: postgres:15.0
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=jupyterhub
+      - POSTGRES_USER=jupyterhub
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ${HOST_FOLDER}/db:/var/lib/postgresql/data
+    networks:
+      - traefik_network
+
+  jupyterhub:
+    container_name: rse_jupyterhub
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - DOCKER_JUPYTER_IMAGE=ghcr.io/pjeanjean/reproduse-notebook
+      - DOCKER_NETWORK_NAME=traefik_network
+      - DOCKER_NOTEBOOKS_FOLDER=/notebooks
+      - DOCKER_NOTEBOOKS_HOST_FOLDER=${HOST_FOLDER}/notebooks
+      - EXTERNAL_HOSTNAME=${HOSTNAME}
+      - HUB_IP=rse_jupyterhub
+      - JUPYTERHUB_CRYPT_KEY=${CRYPT_KEY}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - POSTGRES_DB=jupyterhub
+      - POSTGRES_USER=jupyterhub
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_HOST=rse_jupyterhub_db
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hub-rse.entrypoints=https"
+      - "traefik.http.routers.hub-rse.rule=Host(`${HOSTNAME}`)"
+      - "traefik.http.routers.hub-rse.service=hubport-rse"
+      - "traefik.http.routers.hub-rse.tls.certresolver=default"
+      - "traefik.http.services.hubport-rse.loadbalancer.server.port=8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${HOST_FOLDER}/notebooks:/notebooks
+    networks:
+      - traefik_network
+
+networks:
+  traefik_network:
+    external: true
