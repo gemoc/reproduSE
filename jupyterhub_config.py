@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import sys
 
+from jupyterhub.handlers.base import BaseHandler
+from tornado.web import authenticated
 from traitlets.config import get_config
 
 from dockerspawner import DockerSpawner
@@ -40,13 +42,15 @@ class ReproduSEDockerSpawner(DockerSpawner):
 
 c = get_config()
 
+c.JupyterHub.allow_named_servers = True
+c.JupyterHub.db_url = ('postgresql://'
+                       f'{os.environ["POSTGRES_USER"]}:{os.environ["POSTGRES_PASSWORD"]}@'
+                       f'{os.environ["POSTGRES_HOST"]}/{os.environ["POSTGRES_DB"]}')
+c.JupyterHub.hub_ip = os.environ['HUB_IP']
+
 c.JupyterHub.authenticator_class = DiverSEGitHubOAuthenticator
 c.GitHubOAuthenticator.oauth_callback_url = (f'https://{os.environ["EXTERNAL_HOSTNAME"]}'
                                              '/hub/oauth_callback')
-
-c.JupyterHub.db_url = (f'postgresql://{os.environ["POSTGRES_USER"]}'
-                       f':{os.environ["POSTGRES_PASSWORD"]}@{os.environ["POSTGRES_HOST"]}'
-                       f'/{os.environ["POSTGRES_DB"]}')
 
 c.JupyterHub.spawner_class = ReproduSEDockerSpawner
 c.DockerSpawner.image = os.environ['DOCKER_JUPYTER_IMAGE']
@@ -58,7 +62,6 @@ c.DockerSpawner.volumes = {
     f'{os.environ["DOCKER_NOTEBOOKS_HOST_FOLDER"]}/jupyterhub-user-{{username}}': '/workspace'
 }
 c.DockerSpawner.post_start_cmd = 'conda env update --name base --file environment.yml'
-c.JupyterHub.hub_ip = os.environ['HUB_IP']
 
 c.JupyterHub.load_roles = [
     {
@@ -142,3 +145,22 @@ async def post_hook(spawner):
 
 c.Spawner.pre_spawn_hook = pre_hook
 c.Spawner.post_stop_hook = post_hook
+
+
+class ArtifactHandler(BaseHandler):
+    @authenticated
+    async def get(self):
+        user = await self.get_current_user()
+        artifact = self.get_argument('artifact', default=None)
+        lab = self.get_argument('lab', default=1)
+
+        if not artifact:
+            self.set_status(422)
+            self.write({'error': {'message': 'Missing artifact parameter'}})
+        else:
+            return self.redirect(
+                f'/spawn/{user.escaped_name}/{artifact}?artifact={artifact}&lab={lab}'
+            )
+
+
+c.JupyterHub.extra_handlers.append(('/artifact', ArtifactHandler, {}))
