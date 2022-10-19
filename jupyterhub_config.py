@@ -17,13 +17,14 @@ from oauthenticator import GitHubOAuthenticator
 
 
 class DiverSEGitHubOAuthenticator(GitHubOAuthenticator):
-    admin_organizations = {'diverse-team', 'diverse-project'}
+    admin_organizations = {'diverse-team', 'diverse-project', 'gemoc'}
 
     async def authenticate(self, handler, data=None):
         userdict = await super().authenticate(handler, data)
+        userdict['admin'] = False
         if self.admin_organizations:
             for org in self.admin_organizations:
-                userdict['admin'] = await self._check_membership_allowed_organizations(
+                userdict['admin'] |= await self._check_membership_allowed_organizations(
                     org, userdict['name'],
                     userdict['auth_state']['access_token']
                 )
