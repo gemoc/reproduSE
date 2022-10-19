@@ -1,3 +1,4 @@
+# type: ignore[assignment] # flake8: max-line-length[99]
 # Configuration file for jupyterhub.
 
 import json
@@ -20,7 +21,10 @@ class DiverSEGitHubOAuthenticator(GitHubOAuthenticator):
         userdict = await super().authenticate(handler, data)
         if self.admin_organizations:
             for org in self.admin_organizations:
-                userdict['admin'] = await self._check_membership_allowed_organizations(org, userdict['name'], userdict['auth_state']['access_token'])
+                userdict['admin'] = await self._check_membership_allowed_organizations(
+                    org, userdict['name'],
+                    userdict['auth_state']['access_token']
+                )
 
         return userdict
 
@@ -28,7 +32,7 @@ class DiverSEGitHubOAuthenticator(GitHubOAuthenticator):
 class ReproduSEDockerSpawner(DockerSpawner):
     def options_from_form(self, formdata):
         options = {}
-        for key in ['artifact']:
+        for key in ['artifact', 'lab']:
             if key in formdata:
                 options[key] = formdata[key][0]
         return options
@@ -37,11 +41,12 @@ class ReproduSEDockerSpawner(DockerSpawner):
 c = get_config()
 
 c.JupyterHub.authenticator_class = DiverSEGitHubOAuthenticator
-c.GitHubOAuthenticator.oauth_callback_url = f'https://{os.environ["EXTERNAL_HOSTNAME"]}/hub/oauth_callback'
+c.GitHubOAuthenticator.oauth_callback_url = (f'https://{os.environ["EXTERNAL_HOSTNAME"]}'
+                                             '/hub/oauth_callback')
 
-c.JupyterHub.db_url = f'postgresql://{os.environ["POSTGRES_USER"]}' \
-        f':{os.environ["POSTGRES_PASSWORD"]}@{os.environ["POSTGRES_HOST"]}' \
-        f'/{os.environ["POSTGRES_DB"]}'
+c.JupyterHub.db_url = (f'postgresql://{os.environ["POSTGRES_USER"]}'
+                       f':{os.environ["POSTGRES_PASSWORD"]}@{os.environ["POSTGRES_HOST"]}'
+                       f'/{os.environ["POSTGRES_DB"]}')
 
 c.JupyterHub.spawner_class = ReproduSEDockerSpawner
 c.DockerSpawner.image = os.environ['DOCKER_JUPYTER_IMAGE']
@@ -49,7 +54,9 @@ c.DockerSpawner.network_name = os.environ['DOCKER_NETWORK_NAME']
 c.DockerSpawner.notebook_dir = '/workspace'
 c.DockerSpawner.pull_policy = 'always'
 c.DockerSpawner.remove = True
-c.DockerSpawner.volumes = {os.environ['DOCKER_NOTEBOOKS_HOST_FOLDER'] + '/jupyterhub-user-{username}': '/workspace'}
+c.DockerSpawner.volumes = {
+    f'{os.environ["DOCKER_NOTEBOOKS_HOST_FOLDER"]}/jupyterhub-user-{{username}}': '/workspace'
+}
 c.DockerSpawner.post_start_cmd = 'conda env update --name base --file environment.yml'
 c.JupyterHub.hub_ip = os.environ['HUB_IP']
 
@@ -84,14 +91,16 @@ def init_workspace(spawner):
         os.mkdir(workspace_folder)
         subprocess.check_call(['chown', '-R', '1000:100', workspace_folder])
 
+    git_source = ''
+    notebook_file = ''
     if 'artifact' in spawner.user_options:
         artifact = spawner.user_options['artifact']
-        git_source = ''
 
         with open('/etc/jupyterhub/artifacts.json', 'r') as f:
             artifacts = json.loads(f.read())
             if artifact in artifacts:
-                git_source = artifacts[artifact]
+                git_source = artifacts[artifact]['url']
+                notebook_file = artifacts[artifact]['file']
             else:
                 raise KeyError(f'Unknown artifact {artifact}')
 
@@ -100,17 +109,25 @@ def init_workspace(spawner):
         spawner.notebook_dir = f'/workspace/{artifact}/{repo_name}'
 
         if not os.path.isdir(target_folder):
-            subprocess.check_call(['git', 'clone', '--recurse-submodules', git_source, target_folder])
+            subprocess.check_call(['git', 'clone', '--recurse-submodules',
+                                   git_source, target_folder])
             subprocess.check_call(['chown', '-R', '1000:100', target_folder])
 
     else:
         raise KeyError('Missing artifact')
 
+    if 'lab' in spawner.user_options:
+        lab = spawner.user_options['lab']
+        if lab == '0':
+            spawner.environment['JUPYTERHUB_SINGLEUSER_APP'] = 'notebook.notebookapp.NotebookApp'
+            spawner.args.append(f'--NotebookApp.default_url=/notebooks/{notebook_file}')
+
 
 def clear_workspace(spawner):
     if 'artifact' in spawner.user_options:
         username = spawner.escaped_name
-        target_folder = f'{os.environ["DOCKER_NOTEBOOKS_FOLDER"]}/jupyterhub-user-{username}/{spawner.user_options["artifact"]}'
+        target_folder = (f'{os.environ["DOCKER_NOTEBOOKS_FOLDER"]}/jupyterhub-user-{username}'
+                         f'/{spawner.user_options["artifact"]}')
         if os.path.isdir(target_folder):
             shutil.rmtree(target_folder)
 

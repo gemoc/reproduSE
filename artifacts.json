@@ -1,3 +1,6 @@
 {
-  "demo": "https://github.com/pjeanjean/reproduSE-demo"
+  "demo": {
+    "url": "https://github.com/pjeanjean/reproduSE-demo",
+    "file": "Demo.ipynb"
+  }
 }
