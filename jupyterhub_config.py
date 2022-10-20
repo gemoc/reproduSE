@@ -48,6 +48,7 @@ c.JupyterHub.db_url = ('postgresql://'
                        f'{os.environ["POSTGRES_USER"]}:{os.environ["POSTGRES_PASSWORD"]}@'
                        f'{os.environ["POSTGRES_HOST"]}/{os.environ["POSTGRES_DB"]}')
 c.JupyterHub.hub_ip = os.environ['HUB_IP']
+c.JupyterHub.template_paths = ['/etc/jupyterhub/templates/']
 
 c.JupyterHub.authenticator_class = DiverSEGitHubOAuthenticator
 c.GitHubOAuthenticator.oauth_callback_url = (f'https://{os.environ["EXTERNAL_HOSTNAME"]}'
@@ -86,6 +87,20 @@ c.JupyterHub.services = [
         ],
     }
 ]
+c.JupyterHub.tornado_settings = {
+    'cookie_options': {'SameSite': 'None', 'Secure': True},
+    'headers': {
+        'Content-Security-Policy': 'frame-ancestors self *',
+        'Access-Control-Allow-Origin': '*'
+    }
+}
+c.Spawner.args = [("--NotebookApp.tornado_settings={"
+                   "'cookie_options': {'SameSite': 'None', 'Secure': True},"
+                   "'headers': {"
+                   "'Content-Security-Policy': 'frame-ancestors self *',"
+                   "'Access-Control-Allow-Origin': '*'"
+                   "}}"),
+                  "--NotebookApp.disable_check_xsrf=True"]
 
 
 def init_workspace(spawner):
@@ -150,18 +165,15 @@ c.Spawner.post_stop_hook = post_hook
 
 class ArtifactHandler(BaseHandler):
     @authenticated
-    async def get(self):
+    async def get(self, artifact):
+        self.log.info(self.request.query)
         user = await self.get_current_user()
-        artifact = self.get_argument('artifact', default=None)
-        lab = self.get_argument('lab', default=1)
+        lab = self.get_argument('lab', default='1')
 
-        if not artifact:
-            self.set_status(422)
-            self.write({'error': {'message': 'Missing artifact parameter'}})
-        else:
-            return self.redirect(
-                f'/spawn/{user.escaped_name}/{artifact}?artifact={artifact}&lab={lab}'
-            )
+        self.log.info(f'/spawn/{user.escaped_name}/{artifact}?artifact={artifact}&lab={lab}')
+        return self.redirect(
+            f'/spawn/{user.escaped_name}/{artifact}?artifact={artifact}&lab={lab}'
+        )
 
 
-c.JupyterHub.extra_handlers.append(('/artifact', ArtifactHandler, {}))
+c.JupyterHub.extra_handlers.append((r'/artifact/(?P<artifact>[^/]+)/', ArtifactHandler, {}))

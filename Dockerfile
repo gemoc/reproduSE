@@ -11,6 +11,7 @@ RUN pip install dockerspawner \
 
 COPY jupyterhub_config.py /etc/jupyterhub/
 COPY artifacts.json /etc/jupyterhub/
+COPY templates /etc/jupyterhub/templates
 
 ENTRYPOINT ["jupyterhub"]
 CMD ["-f", "/etc/jupyterhub/jupyterhub_config.py"]
