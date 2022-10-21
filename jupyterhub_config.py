@@ -83,8 +83,8 @@ c.JupyterHub.services = [
         "command": [
             sys.executable,
             "-m", "jupyterhub_idle_culler",
-            "--timeout=3600",
-        ],
+            "--timeout=600", "--max-age=3600", "--remove-named-servers=True"
+        ]
     }
 ]
 c.JupyterHub.tornado_settings = {
@@ -166,11 +166,9 @@ c.Spawner.post_stop_hook = post_hook
 class ArtifactHandler(BaseHandler):
     @authenticated
     async def get(self, artifact):
-        self.log.info(self.request.query)
         user = await self.get_current_user()
         lab = self.get_argument('lab', default='1')
 
-        self.log.info(f'/spawn/{user.escaped_name}/{artifact}?artifact={artifact}&lab={lab}')
         return self.redirect(
             f'/spawn/{user.escaped_name}/{artifact}?artifact={artifact}&lab={lab}'
         )
